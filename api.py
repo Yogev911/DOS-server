@@ -29,15 +29,9 @@ def stop():
     sys.exit(0)
 
 
-@app.route("/", methods=['GET'])
-def client_id():
-    global shared_dict, lock
+@app.route("/connection", methods=['GET'])
+def calc_connection():
     client_id = request.args.get('clientid')
-    port = request.args.get('port')
-    if port == '8080':
-        return redirect(
-            f"http://0.0.0.0:8080/?clientid=3&port={(client_id % CPUS) + 8080}",
-            code=302)
     input_time = time.mktime(datetime.datetime.today().timetuple())
     end_time = input_time + TIME_FRAME
     lock.acquire()
@@ -49,6 +43,14 @@ def client_id():
         res = handel_existing_client(client_id, end_time, input_time)
     lock.release()
     return res
+
+
+@app.route("/", methods=['GET'])
+def root():
+    global shared_dict, lock
+    client_id = int(request.args.get('clientid'))
+    print(f"http://0.0.0.0:{str((client_id % CPUS) + 8080)}/connection?clientid=3")
+    return redirect(f"http://0.0.0.0:{str((client_id % CPUS) + 8080)}/connection?clientid=3", code=302)
 
 
 def handel_existing_client(client_id, end_time, input_time):
