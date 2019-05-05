@@ -49,7 +49,6 @@ def calc_connection():
 def root():
     global shared_dict, lock
     client_id = int(request.args.get('clientid'))
-    print(f"http://0.0.0.0:{str((client_id % CPUS) + 8080)}/connection?clientid=3")
     return redirect(f"http://0.0.0.0:{str((client_id % CPUS) + 8080)}/connection?clientid=3", code=302)
 
 
