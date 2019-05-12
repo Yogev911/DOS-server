@@ -7,11 +7,24 @@ from flask import Flask, request
 app = Flask(__name__)
 CORS(app)
 
-TIME_FRAME = 10
-MAX_CONNECTIONS = 2
+TIME_FRAME = 5
+MAX_CONNECTIONS = 5
 
 shared_dict = None
 lock = None
+
+
+def shutdown_server():
+    func = request.environ.get('werkzeug.server.shutdown')
+    if func is None:
+        raise RuntimeError('Not running with the Werkzeug Server')
+    func()
+
+
+@app.route('/shutdown', methods=['POST'])
+def shutdown():
+    shutdown_server()
+    return 'Server shutting down...', 200
 
 
 @app.route("/connection", methods=['GET'])
