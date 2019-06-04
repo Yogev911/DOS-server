@@ -1,32 +1,30 @@
-import sys
 import json
 import time
 import datetime
-import multiprocessing
 from flask_cors import CORS
-from flask import Flask, request, redirect
-from multiprocessing import Process, Lock
+from flask import Flask, request
 
 app = Flask(__name__)
 CORS(app)
 
 TIME_FRAME = 5
 MAX_CONNECTIONS = 5
-CPUS = multiprocessing.cpu_count()
+
+shared_dict = None
+lock = None
 
 
-@app.route('/stop', methods=['get'])
-def stop():
-    global process_pool
-    print('Server shutting down...')
-    for p in process_pool:
-        print(f"stopping {str(p.pid)}")
-        p.join()
-        time.sleep(10)
-        if p.is_alive():
-            p.kill()
-    print('Server stopped')
-    sys.exit(0)
+def shutdown_server():
+    func = request.environ.get('werkzeug.server.shutdown')
+    if func is None:
+        raise RuntimeError('Not running with the Werkzeug Server')
+    func()
+
+
+@app.route('/shutdown', methods=['POST'])
+def shutdown():
+    shutdown_server()
+    return 'Server shutting down...', 200
 
 
 @app.route("/connection", methods=['GET'])
@@ -45,13 +43,6 @@ def calc_connection():
     return res
 
 
-@app.route("/", methods=['GET'])
-def root():
-    global shared_dict, lock
-    client_id = int(request.args.get('clientid'))
-    return redirect(f"http://0.0.0.0:{str((client_id % CPUS) + 8080)}/connection?clientid=3", code=302)
-
-
 def handel_existing_client(client_id, end_time, input_time):
     global shared_dict
     frame_end_time = shared_dict[client_id][0]
@@ -66,7 +57,7 @@ def handel_existing_client(client_id, end_time, input_time):
         # new frame
         shared_dict[client_id] = [end_time, 1]
         res = json.dumps({'success': True}), 200, {'ContentType': 'application/json'}
-        print(f"client: {client_id} active conn {1}, opened new frame")
+        print(f"client: {client_id} active conn 1, opened new frame")
 
     elif active_connection == MAX_CONNECTIONS and delta_time >= 0:
         # dismiss connections
@@ -79,12 +70,8 @@ def handel_existing_client(client_id, end_time, input_time):
     return res
 
 
-if __name__ == '__main__':
-    shared_dict = {}
-    process_pool = []
-    lock = Lock()
-    for _ in range(1, CPUS + 1):
-        p = Process(target=app.run, args=("0.0.0.0", 8080 + _,))
-        process_pool.append(p)
-        p.start()
-    app.run(host="0.0.0.0", port=8080)
+def worker(data):
+    global shared_dict, lock
+    shared_dict = data['dict']
+    lock = data['lock']
+    app.run(host="0.0.0.0", port=data['port'])
